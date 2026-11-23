@@ -2697,6 +2697,10 @@ let rec check_uniqueness_exp_desc ~borrows ~overwrite (ienv : Ienv.t) ~loc :
     UF.seq uf (check_uniqueness_exp ~overwrite:None ienv e)
   | Texp_probe { handler } -> check_uniqueness_exp ~overwrite:None ienv handler
   | Texp_probe_is_enabled _ -> UF.unused
+  | Texp_probe_point { condition = Some condition; _ } ->
+    check_uniqueness_exp ~overwrite:None ienv condition
+  | Texp_probe_point { condition = None; _ } | Texp_probe_point_counts _ ->
+    UF.unused
   | Texp_exclave e -> check_uniqueness_exp ~overwrite:None ienv e
   | Texp_src_pos -> UF.unused
   | Texp_typed_hole -> UF.unused

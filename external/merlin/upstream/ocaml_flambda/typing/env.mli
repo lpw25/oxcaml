@@ -224,6 +224,18 @@ val reset_probes: unit -> unit
 val add_probe: string -> unit
 val has_probe: string -> bool
 
+(* [add_probe_point name index] records a [%probe_point name index]. It also
+   adds [name] as a probe name. *)
+val add_probe_point: string -> int -> unit
+
+(* The length of the counts array for probe points named [name] in the current
+   compilation unit, or [None] if there are no such points. *)
+val probe_point_counts_length: string -> int option
+
+(* The length of the counts array for each probe point name used in the
+   current compilation unit. *)
+val probe_point_counts_lengths: unit -> int Misc.Stdlib.String.Map.t
+
 val has_local_constraints: t -> bool
 
 (* Mark definitions as used *)

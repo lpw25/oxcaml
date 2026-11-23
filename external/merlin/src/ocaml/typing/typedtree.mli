@@ -738,6 +738,11 @@ and expression_desc =
         (** let open[!] M in e *)
   | Texp_probe of { name:string; handler:expression; enabled_at_init:bool }
   | Texp_probe_is_enabled of { name:string }
+  | Texp_probe_point of
+      { name:string; index:int; condition:expression option }
+        (** [%probe_point name index] or [%probe_point name index condition] *)
+  | Texp_probe_point_counts of { name:string }
+        (** [%probe_point_counts name] *)
   | Texp_exclave of expression
   | Texp_src_pos
     (* A source position value which has been automatically inferred, either

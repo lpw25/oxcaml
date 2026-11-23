@@ -231,6 +231,10 @@ let classify_expression : Typedtree.expression -> sd =
         (* CR vlaviron: Dynamic would probably be a better choice *)
         Static
 
+    | Texp_probe_point _
+    | Texp_probe_point_counts _ ->
+        Dynamic
+
     | Texp_apply ({exp_desc = Texp_ident { desc = vd; kind = Id_prim _; _ }},
         _, _, _, _, _)
       when is_ref vd ->
@@ -1090,6 +1094,10 @@ let rec expression : Typedtree.expression -> term_judg =
     | Texp_probe {handler} ->
       expression handler << Dereference
     | Texp_probe_is_enabled _ -> empty
+    | Texp_probe_point {condition = Some condition; _} ->
+      expression condition << Dereference
+    | Texp_probe_point {condition = None; _}
+    | Texp_probe_point_counts _ -> empty
     | Texp_exclave e -> expression e
     | Texp_src_pos -> empty
     | Texp_typed_hole -> empty

@@ -829,6 +829,23 @@ let expression sub exp =
                      , [])
                ; pstr_loc = loc
                }]))
+    | Texp_probe_point {name; index; condition} ->
+        let args =
+          (Asttypes.Nolabel,
+           Exp.constant ~loc (Const.integer ~loc (Int.to_string index)))
+          :: (match condition with
+              | None -> []
+              | Some condition -> [Asttypes.Nolabel, sub.expr sub condition])
+        in
+        Pexp_extension
+          ({ txt = "ocaml.probe_point"; loc },
+           PStr [Str.eval ~loc
+                   (Exp.apply ~loc
+                      (Exp.constant ~loc (Const.string ~loc name)) args)])
+    | Texp_probe_point_counts {name} ->
+        Pexp_extension
+          ({ txt = "ocaml.probe_point_counts"; loc },
+           PStr [Str.eval ~loc (Exp.constant ~loc (Const.string ~loc name))])
     | Texp_exclave exp ->
         Pexp_apply ({
         pexp_desc =

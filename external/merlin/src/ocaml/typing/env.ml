@@ -1957,9 +1957,25 @@ let global_of_instance_compilation_unit cu =
   global
 
 let probes = ref String.Set.empty
-let reset_probes () = probes := String.Set.empty
+let probe_points = ref String.Map.empty
+let reset_probes () =
+  probes := String.Set.empty;
+  probe_points := String.Map.empty
 let add_probe name = probes := String.Set.add name !probes
 let has_probe name = String.Set.mem name !probes
+let add_probe_point name index =
+  add_probe name;
+  probe_points :=
+    String.Map.update name
+      (function
+        | None -> Some index
+        | Some max_index -> Some (Int.max index max_index))
+      !probe_points
+let probe_point_counts_length name =
+  Option.map (fun max_index -> max_index + 1)
+    (String.Map.find_opt name !probe_points)
+let probe_point_counts_lengths () =
+  String.Map.map (fun max_index -> max_index + 1) !probe_points
 
 let find_shape env (ns : Shape.Sig_component_kind.t) id =
   match ns with

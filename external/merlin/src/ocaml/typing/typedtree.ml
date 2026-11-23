@@ -448,6 +448,9 @@ and expression_desc =
   | Texp_open of open_declaration * expression
   | Texp_probe of { name:string; handler:expression; enabled_at_init:bool; }
   | Texp_probe_is_enabled of { name:string }
+  | Texp_probe_point of
+      { name:string; index:int; condition:expression option }
+  | Texp_probe_point_counts of { name:string }
   | Texp_exclave of expression
   | Texp_src_pos
   | Texp_overwrite of expression * expression
