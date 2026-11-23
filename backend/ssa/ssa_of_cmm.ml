@@ -336,7 +336,7 @@ and emit env c (exp : Cmm.expression) ~tail : result =
            | Cstore (_, _)
            | Cmulhi _ | Cmuli64 _ | Cbswap _ | Ccsel _ | Cprefetch _ | Catomic _
            | Ccmpi _ | Cnegf _ | Cabsf _ | Caddf _ | Csubf _ | Cmulf _ | Cdivf _
-           | Creinterpret_cast _ | Cstatic_cast _
+           | Creinterpret_cast _ | Cstatic_cast _ | Cprobe_point _
            | Ccmpf (_, _)
            | Cprobe _ | Cprobe_is_enabled _ | Copaque _ ) as op),
           args,
@@ -450,7 +450,7 @@ and emit_expr_op env c op args dbg : result =
           | Intop_atomic _
           | Floatop (_, _)
           | Csel _ | Reinterpret_cast _ | Static_cast _ | Probe_is_enabled _
-          | Specific _ | Name_for_debugger _ )
+          | Probe_point _ | Specific _ | Name_for_debugger _ )
       | Reloadretaddr | Prologue | Epilogue | Pushtrap _ | Poptrap _
       | Stack_check _ ) -> (
     let* arg_instrs = emit_tuple env c new_args in

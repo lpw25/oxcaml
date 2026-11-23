@@ -1028,6 +1028,15 @@ type nullary_primitive =
       { name : string;
         enabled_at_init : bool option
       }
+  | Probe_point of
+      { name : string;
+        compilation_unit : Compilation_unit.t;
+        index : int
+      }
+  | Probe_point_counts of
+      { name : string;
+        compilation_unit : Compilation_unit.t
+      }
   | Enter_inlined_apply of
       { dbg : Inlined_debuginfo.t;
         inlined_attribute : Inlined_attribute.t
@@ -1040,8 +1049,10 @@ type nullary_primitive =
   | Cpu_relax
 
 let nullary_primitive_eligible_for_cse = function
-  | Invalid _ | Optimised_out _ | Probe_is_enabled _ | Enter_inlined_apply _
-  | Dls_get | Tls_get | Domain_index | Thread_self_id | Poll | Cpu_relax ->
+  | Probe_point_counts _ -> true
+  | Invalid _ | Optimised_out _ | Probe_is_enabled _ | Probe_point _
+  | Enter_inlined_apply _ | Dls_get | Tls_get | Domain_index | Thread_self_id
+  | Poll | Cpu_relax ->
     false
 
 let compare_nullary_primitive p1 p2 =
@@ -1057,6 +1068,8 @@ let compare_nullary_primitive p1 p2 =
     | Thread_self_id -> 7
     | Poll -> 8
     | Cpu_relax -> 9
+    | Probe_point _ -> 10
+    | Probe_point_counts _ -> 11
   in
   match p1, p2 with
   | Invalid k1, Invalid k2 -> K.compare k1 k2
@@ -1080,8 +1093,27 @@ let compare_nullary_primitive p1 p2 =
   | Thread_self_id, Thread_self_id -> 0
   | Poll, Poll -> 0
   | Cpu_relax, Cpu_relax -> 0
-  | ( ( Invalid _ | Optimised_out _ | Probe_is_enabled _ | Enter_inlined_apply _
-      | Dls_get | Tls_get | Domain_index | Thread_self_id | Poll | Cpu_relax ),
+  | ( Probe_point
+        { name = name1; compilation_unit = compilation_unit1; index = index1 },
+      Probe_point
+        { name = name2; compilation_unit = compilation_unit2; index = index2 } )
+    ->
+    let c = String.compare name1 name2 in
+    if c <> 0
+    then c
+    else
+      let c = Compilation_unit.compare compilation_unit1 compilation_unit2 in
+      if c <> 0 then c else Int.compare index1 index2
+  | ( Probe_point_counts { name = name1; compilation_unit = compilation_unit1 },
+      Probe_point_counts { name = name2; compilation_unit = compilation_unit2 }
+    ) ->
+    let c = String.compare name1 name2 in
+    if c <> 0
+    then c
+    else Compilation_unit.compare compilation_unit1 compilation_unit2
+  | ( ( Invalid _ | Optimised_out _ | Probe_is_enabled _ | Probe_point _
+      | Probe_point_counts _ | Enter_inlined_apply _ | Dls_get | Tls_get
+      | Domain_index | Thread_self_id | Poll | Cpu_relax ),
       _ ) ->
     Int.compare
       (nullary_primitive_numbering p1)
@@ -1102,6 +1134,13 @@ let print_nullary_primitive ppf p =
       (match enabled_at_init with
       | None | Some false -> ""
       | Some true -> " enabled_at_init")
+  | Probe_point { name; compilation_unit; index } ->
+    Format.fprintf ppf "@[<hov 1>(Probe_point@ %s@ %s@ %d)@]" name
+      (Compilation_unit.full_path_as_string compilation_unit)
+      index
+  | Probe_point_counts { name; compilation_unit } ->
+    Format.fprintf ppf "@[<hov 1>(Probe_point_counts@ %s@ %s)@]" name
+      (Compilation_unit.full_path_as_string compilation_unit)
   | Enter_inlined_apply { dbg; inlined_attribute } ->
     Format.fprintf ppf "@[<hov 1>(Enter_inlined_apply@ %a@ %a)@]"
       Inlined_debuginfo.print dbg Inlined_attribute.print inlined_attribute
@@ -1117,6 +1156,8 @@ let result_kind_of_nullary_primitive p : result_kind =
   | Invalid k -> Singleton k
   | Optimised_out k -> Singleton k
   | Probe_is_enabled _ -> Singleton K.naked_immediate
+  | Probe_point _ -> Unit
+  | Probe_point_counts _ -> Singleton K.value
   | Enter_inlined_apply _ -> Unit
   | Dls_get | Tls_get | Thread_self_id -> Singleton K.value
   | Domain_index -> Singleton K.naked_immediate
@@ -1136,6 +1177,10 @@ let effects_and_coeffects_of_nullary_primitive p : Effects_and_coeffects.t =
     (* This doesn't really have effects, but we want to make sure it never gets
        moved around. *)
     Arbitrary_effects, Has_coeffects, Strict, Can't_move_before_any_branch
+  | Probe_point _ ->
+    Arbitrary_effects, Has_coeffects, Strict, Can't_move_before_any_branch
+  | Probe_point_counts _ ->
+    No_effects, No_coeffects, Strict, Can't_move_before_any_branch
   | Enter_inlined_apply _ ->
     (* This doesn't really have effects, but without effects, these primitives
        get deleted during lambda_to_flambda. *)
@@ -1147,14 +1192,16 @@ let effects_and_coeffects_of_nullary_primitive p : Effects_and_coeffects.t =
 
 let nullary_classify_for_printing p =
   match p with
-  | Invalid _ | Optimised_out _ | Probe_is_enabled _ | Enter_inlined_apply _
-  | Dls_get | Tls_get | Domain_index | Thread_self_id | Poll | Cpu_relax ->
+  | Invalid _ | Optimised_out _ | Probe_is_enabled _ | Probe_point _
+  | Probe_point_counts _ | Enter_inlined_apply _ | Dls_get | Tls_get
+  | Domain_index | Thread_self_id | Poll | Cpu_relax ->
     Neither
 
 let free_names_nullary_primitive p =
   match p with
-  | Invalid _ | Optimised_out _ | Probe_is_enabled _ | Enter_inlined_apply _
-  | Dls_get | Tls_get | Domain_index | Thread_self_id | Poll | Cpu_relax ->
+  | Invalid _ | Optimised_out _ | Probe_is_enabled _ | Probe_point _
+  | Probe_point_counts _ | Enter_inlined_apply _ | Dls_get | Tls_get
+  | Domain_index | Thread_self_id | Poll | Cpu_relax ->
     Name_occurrences.empty
 
 module Reinterpret_64_bit_word = struct
@@ -2854,9 +2901,9 @@ let apply_renaming t renaming =
   let apply simple = Simple.apply_renaming simple renaming in
   match t with
   | Nullary
-      ( Invalid _ | Optimised_out _ | Probe_is_enabled _ | Enter_inlined_apply _
-      | Dls_get | Tls_get | Domain_index | Thread_self_id | Poll | Cpu_relax )
-    ->
+      ( Invalid _ | Optimised_out _ | Probe_is_enabled _ | Probe_point _
+      | Probe_point_counts _ | Enter_inlined_apply _ | Dls_get | Tls_get
+      | Domain_index | Thread_self_id | Poll | Cpu_relax ) ->
     t
   | Unary (prim, x0) ->
     let prim' = apply_renaming_unary_primitive prim renaming in
@@ -2894,9 +2941,9 @@ let apply_renaming t renaming =
 let ids_for_export t =
   match t with
   | Nullary
-      ( Invalid _ | Optimised_out _ | Probe_is_enabled _ | Enter_inlined_apply _
-      | Dls_get | Tls_get | Domain_index | Thread_self_id | Poll | Cpu_relax )
-    ->
+      ( Invalid _ | Optimised_out _ | Probe_is_enabled _ | Probe_point _
+      | Probe_point_counts _ | Enter_inlined_apply _ | Dls_get | Tls_get
+      | Domain_index | Thread_self_id | Poll | Cpu_relax ) ->
     Ids_for_export.empty
   | Unary (prim, x0) ->
     Ids_for_export.union

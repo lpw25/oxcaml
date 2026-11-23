@@ -37,6 +37,17 @@ let simplify_nullary_primitive dacc original_prim (prim : P.nullary_primitive)
     in
     let dacc = DA.add_variable dacc result_var ty in
     Simplify_primitive_result.create named ~try_reify:false dacc
+  | Probe_point { name = _; compilation_unit = _; index = _ } ->
+    let named = Named.create_prim original_prim dbg in
+    let machine_width = DE.machine_width (DA.denv dacc) in
+    let ty = T.this_tagged_immediate (Target_ocaml_int.zero machine_width) in
+    let dacc = DA.add_variable dacc result_var ty in
+    Simplify_primitive_result.create named ~try_reify:false dacc
+  | Probe_point_counts { name = _; compilation_unit = _ } ->
+    let named = Named.create_prim original_prim dbg in
+    let ty = T.any_value in
+    let dacc = DA.add_variable dacc result_var ty in
+    Simplify_primitive_result.create named ~try_reify:false dacc
   | Enter_inlined_apply { dbg; inlined_attribute } ->
     let dacc =
       DA.map_denv dacc ~f:(fun denv ->

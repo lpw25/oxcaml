@@ -389,6 +389,8 @@ let nullary_prim_size prim =
   | Invalid _ -> 0
   | Optimised_out _ -> 0
   | Probe_is_enabled { name = _; enabled_at_init = _ } -> 4
+  | Probe_point { name = _; compilation_unit = _; index = _ } -> 2
+  | Probe_point_counts { name = _; compilation_unit = _ } -> 1
   | Enter_inlined_apply _ -> 0
   | Dls_get -> 1
   | Tls_get -> 1

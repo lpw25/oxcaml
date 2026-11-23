@@ -164,6 +164,11 @@ type t =
       { name : string;
         enabled_at_init : bool option
       }
+  | Probe_point of
+      { name : string;
+        counts : Cmm.symbol;
+        index : int
+      }
   | Opaque
   | Begin_region
   | End_region

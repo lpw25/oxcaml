@@ -375,6 +375,17 @@ type nullary_primitive =
           Semaphore initialization code may be emitted as a consequence of
           seeing this instruction, but the emitter checks that all occurrences
           of [enabled_at_init] are consistent for a given probe [name]. *)
+  | Probe_point of
+      { name : string;
+        compilation_unit : Compilation_unit.t;
+        index : int
+      }
+      (** While the probe [name] is enabled, increments element [index] of the
+          [%probe_point_counts name] array of [compilation_unit]. *)
+  | Probe_point_counts of
+      { name : string;
+        compilation_unit : Compilation_unit.t
+      }  (** The counts array for probe points [name] of [compilation_unit]. *)
   | Enter_inlined_apply of
       { dbg : Inlined_debuginfo.t;
         inlined_attribute : Inlined_attribute.t

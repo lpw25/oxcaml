@@ -916,6 +916,11 @@ and expression i ppf x =
       expression i ppf handler;
   | Texp_probe_is_enabled {name} ->
       line i ppf "Texp_probe_is_enabled \"%s\"\n" name;
+  | Texp_probe_point {name; index; condition} ->
+      line i ppf "Texp_probe_point \"%s\" %d\n" name index;
+      Option.iter (expression i ppf) condition;
+  | Texp_probe_point_counts {name} ->
+      line i ppf "Texp_probe_point_counts \"%s\"\n" name;
   | Texp_exclave (e) ->
       line i ppf "Texp_exclave";
       expression i ppf e;

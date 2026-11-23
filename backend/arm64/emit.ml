@@ -1957,6 +1957,8 @@ let emit_instr env i =
   | Lop (Name_for_debugger _) -> ()
   | Lcall_op (Lprobe _) ->
     Misc.fatal_error "Optimized probes not supported on arm64."
+  | Lop (Probe_point _) ->
+    Misc.fatal_error "Optimized probe points not supported on arm64."
   | Lop (Probe_is_enabled { name; enabled_at_init }) ->
     let semaphore_sym =
       Probe_emission.find_or_add_semaphore name enabled_at_init i.dbg

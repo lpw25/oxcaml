@@ -514,6 +514,11 @@ type operation =
       { name : string;
         enabled_at_init : bool option
       }
+  | Cprobe_point of
+      { name : string;
+        counts : symbol;
+        index : int
+      }
   | Copaque of machtype (* Sys.opaque_identity *)
   | Cbeginregion
   | Cendregion

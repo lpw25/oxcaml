@@ -2902,7 +2902,7 @@ let lambda_primitive_needs_event_after = function
        | Pgcscannableproductarray _ | Pgcignorableproductarray _), _, _)
   | Parrayblit _
   | Parraylength _ | Parrayrefu _ | Parraysetu _ | Pisint _ | Pisnull | Pisout
-  | Pprobe_is_enabled _
+  | Pprobe_is_enabled _ | Pprobe_point _ | Pprobe_point_counts _
   | Patomic_exchange_field _ | Patomic_compare_exchange_field _
   | Patomic_compare_set_field _ | Patomic_fetch_add_field
   | Patomic_add_field | Patomic_sub_field

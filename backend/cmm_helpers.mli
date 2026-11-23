@@ -1591,6 +1591,20 @@ val cpu_relax : dbg:Debuginfo.t -> expression
 
 val poll : dbg:Debuginfo.t -> expression
 
+(** The name of the symbol of the [%probe_point_counts name] array of the given
+    compilation unit. *)
+val probe_point_counts_symbol_name :
+  compilation_unit:Compilation_unit.t -> string -> string
+
+(** A [%probe_point name index] incrementing [index] of the [counts] array. *)
+val probe_point :
+  dbg:Debuginfo.t -> name:string -> counts:symbol -> index:int -> expression
+
+(** The definition of the [%probe_point_counts name] array of the given
+    compilation unit, given its name and length. *)
+val probe_point_counts_data :
+  compilation_unit:Compilation_unit.t -> string * int -> phrase
+
 (** This module defines the various kinds of scalars usable in Cmm. It also
     provides ways to generate expressions to cast between them. *)
 module Scalar_type : sig

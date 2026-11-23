@@ -434,6 +434,150 @@ let zero_alloc_of_application
     end
   | None, _ -> Zero_alloc_utils.Assume_info.none
 
+let transl_probe ~scopes ~env ~loc ~handler_loc ~name ~enabled_at_init lam =
+  let map =
+    Ident.Set.fold (fun v acc -> Ident.Map.add v (Ident.rename v) acc)
+      (free_variables lam)
+      Ident.Map.empty
+  in
+  let arg_idents, param_idents = Ident.Map.bindings map |> List.split in
+  List.iter (fun id ->
+    (* CR layouts: The probe hack.
+
+       The lambda translation wants to know the jkinds of all function
+       parameters.  Here we're building a function whose arguments are all
+       the free variables in a probe handler.  At the moment, we just check
+       that they are all values.
+
+       It's really hacky to be doing this kind of jkind check this late.
+       The middle-end folks have plans to eliminate the need for it by
+       reworking the way probes are compiled.
+
+       (We could probably calculate the jkinds of these variables here
+       rather than requiring them all to be value, but that would be even
+       more hacky.) *)
+    (* CR layouts v2.5: if we get close to releasing other jkind somebody
+       actually might put in a probe, check with the middle-end team about
+       the status of fixing this. *)
+    let path = Path.Pident id in
+    match
+      Subst.Lazy.force_value_description (Env.find_value path env)
+    with
+    | {val_type; _} -> begin
+        match
+          Ctype.check_type_jkind env val_type
+          (* CR layouts v3: here we allow [value_or_null] because this check
+             happens too late for the typecheker to infer [non_null]. Test that
+             nothing breaks once we have null pointers. *)
+            (Jkind.Builtin.value_or_null ~why:Probe)
+        with
+        | Ok _ -> ()
+        | Error _ -> raise (Error (loc, Bad_probe_layout id))
+      end
+    | exception Not_found -> begin
+        (* Might be a module, which are all values.  Otherwise raise. *)
+        match Env.find_module_lazy path env with
+        | _ -> ()
+        | exception Not_found ->
+            (* Might still be a module if it's bound to a runtime parameter. *)
+            if not (Env.is_bound_to_runtime_parameter id) then
+              raise (Error (loc, Unknown_probe_layout id))
+      end
+  ) arg_idents;
+  let make_param name = {
+    name;
+    debug_uid = Lambda.debug_uid_none;
+    (* For probes, we currently do not track [debug_uid] values. *)
+    layout = layout_probe_arg;
+    attributes = Lambda.default_param_attribute;
+    mode = alloc_local }
+  in
+  let params, ap_args =
+    match param_idents with
+    | [] ->
+        [make_param (Ident.create_local "unit")]
+      , [lambda_unit]
+    | _ :: _ ->
+        List.map make_param param_idents
+      , List.map (fun id -> Lvar id) arg_idents
+  in
+  let body = Lambda.rename map lam in
+  let attr =
+    { inline = Never_inline;
+      specialise = Always_specialise;
+      local = Never_local;
+      zero_alloc = Default_zero_alloc;
+      loop = Never_loop;
+      regalloc = Default_regalloc;
+      regalloc_param = Default_regalloc_params;
+      cold = false;
+      is_a_functor = false;
+      is_opaque = false;
+      stub = false;
+      poll = Default_poll;
+      tmc_candidate = false;
+      unbox_return = None;
+      may_fuse_arity = false;
+    } in
+  let funcid = Ident.create_local ("probe_handler_" ^ name) in
+  let funcid_duid = Lambda.debug_uid_none in
+  (* Probe bodies have type unit, but the handler returns [#()] so that the
+     probe call has no return value. *)
+  let return_layout = layout_unboxed_unit in
+  let body = Lprim (Punbox_unit, [body], of_location ~scopes handler_loc) in
+  let handler =
+    let assume_zero_alloc = get_assume_zero_alloc ~scopes in
+    let scopes = enter_value_definition ~scopes ~assume_zero_alloc funcid in
+    lfunction
+      (* We conservatively assume that all arguments are local. This doesn't
+         hurt performance as probe handlers are always applied fully. *)
+      ~kind:(Curried {nlocal=List.length params})
+      (* CR layouts: Adjust param layouts when we allow other things in
+         probes. *)
+      ~params
+      ~return:return_layout
+      ~body:body
+      ~loc:(of_location ~scopes handler_loc)
+      ~attr
+      ~mode:alloc_heap
+      ~ret_mode:maybe_alloc_stack
+      (* CR zqian: the handler function doesn't have a region. However, the
+         [region] field is currently broken. *)
+  in
+  let ap_loc = of_location loc ~scopes in
+  let app ~ap_probe =
+    { ap_func = Lvar funcid;
+      ap_args;
+      ap_result_layout = return_layout;
+      ap_region_close = Rc_normal;
+      ap_mode = maybe_alloc_stack;
+      (* The probe handler is the user's [%probe] body, so may yield *)
+      ap_yielding = May_yield;
+      ap_loc;
+      ap_tailcall = Default_tailcall;
+      ap_inlined = Never_inlined;
+      ap_specialised = Always_specialise;
+      ap_probe;
+    }
+  in
+  let lam =
+    if !Clflags.emit_optimized_probes then
+      let ap_probe = Some {name; enabled_at_init} in
+      Lsequence (Lapply (app ~ap_probe), lambda_unit)
+    else
+      (* Slower implementation of probes where there isn't clever
+         architecture-specific codegen. Read the semaphore each time. *)
+      (Lifthenelse
+         ( Lprim
+             (Pprobe_is_enabled
+                { name; enabled_at_init = Some enabled_at_init },
+                  [], ap_loc),
+           Lsequence (Lapply (app ~ap_probe:None), lambda_unit),
+           lambda_unit,
+           layout_unit ))
+  in
+  Llet(Strict, Lambda.layout_function, funcid, funcid_duid, handler, lam)
+
 let rec transl_exp ~scopes layout e =
   transl_exp1 ~scopes ~in_new_scope:false layout e
 
@@ -1443,159 +1587,57 @@ and transl_exp0 ~in_new_scope ~scopes (layout : Lambda.layout) e =
                !transl_module ~scopes Tcoerce_none None od.open_expr, body)
       end
   | Texp_probe {name; handler=exp; enabled_at_init} ->
-    if Clflags.target_is_native () && !Clflags.probes then begin
+    if Clflags.target_is_native () && !Clflags.probes then
       let lam = transl_exp ~scopes Lambda.layout_probe_arg exp in
-      let map =
-        Ident.Set.fold (fun v acc -> Ident.Map.add v (Ident.rename v) acc)
-          (free_variables lam)
-          Ident.Map.empty
-      in
-      let arg_idents, param_idents = Ident.Map.bindings map |> List.split in
-      List.iter (fun id ->
-        (* CR layouts: The probe hack.
-
-           The lambda translation wants to know the jkinds of all function
-           parameters.  Here we're building a function whose arguments are all
-           the free variables in a probe handler.  At the moment, we just check
-           that they are all values.
-
-           It's really hacky to be doing this kind of jkind check this late.
-           The middle-end folks have plans to eliminate the need for it by
-           reworking the way probes are compiled.
-
-           (We could probably calculate the jkinds of these variables here
-           rather than requiring them all to be value, but that would be even
-           more hacky.) *)
-        (* CR layouts v2.5: if we get close to releasing other jkind somebody
-           actually might put in a probe, check with the middle-end team about
-           the status of fixing this. *)
-        let path = Path.Pident id in
-        match
-          Subst.Lazy.force_value_description (Env.find_value path e.exp_env)
-        with
-        | {val_type; _} -> begin
-            match
-              Ctype.check_type_jkind e.exp_env val_type
-              (* CR layouts v3: here we allow [value_or_null] because this check
-                 happens too late for the typecheker to infer [non_null]. Test that
-                 nothing breaks once we have null pointers. *)
-                (Jkind.Builtin.value_or_null ~why:Probe)
-            with
-            | Ok _ -> ()
-            | Error _ -> raise (Error (e.exp_loc, Bad_probe_layout id))
-          end
-        | exception Not_found -> begin
-            (* Might be a module, which are all values.  Otherwise raise. *)
-            match Env.find_module_lazy path e.exp_env with
-            | _ -> ()
-            | exception Not_found ->
-                (* Might still be a module if it's bound to a runtime parameter. *)
-                if not (Env.is_bound_to_runtime_parameter id) then
-                  raise (Error (e.exp_loc, Unknown_probe_layout id))
-          end
-      ) arg_idents;
-      let make_param name = {
-        name;
-        debug_uid = Lambda.debug_uid_none;
-        (* For probes, we currently do not track [debug_uid] values. *)
-        layout = layout_probe_arg;
-        attributes = Lambda.default_param_attribute;
-        mode = alloc_local }
-      in
-      let params, ap_args =
-        match param_idents with
-        | [] ->
-            [make_param (Ident.create_local "unit")]
-          , [lambda_unit]
-        | _ :: _ ->
-            List.map make_param param_idents
-          , List.map (fun id -> Lvar id) arg_idents
-      in
-      let body = Lambda.rename map lam in
-      let attr =
-        { inline = Never_inline;
-          specialise = Always_specialise;
-          local = Never_local;
-          zero_alloc = Default_zero_alloc;
-          loop = Never_loop;
-          regalloc = Default_regalloc;
-          regalloc_param = Default_regalloc_params;
-          cold = false;
-          is_a_functor = false;
-          is_opaque = false;
-          stub = false;
-          poll = Default_poll;
-          tmc_candidate = false;
-          unbox_return = None;
-          may_fuse_arity = false;
-        } in
-      let funcid = Ident.create_local ("probe_handler_" ^ name) in
-      let funcid_duid = Lambda.debug_uid_none in
-      (* Probe bodies have type unit, but the handler returns [#()] so that the
-         probe call has no return value. *)
-      let return_layout = layout_unboxed_unit in
-      let body = Lprim (Punbox_unit, [body], of_location ~scopes exp.exp_loc) in
-      let handler =
-        let assume_zero_alloc = get_assume_zero_alloc ~scopes in
-        let scopes = enter_value_definition ~scopes ~assume_zero_alloc funcid in
-        lfunction
-          (* We conservatively assume that all arguments are local. This doesn't
-             hurt performance as probe handlers are always applied fully. *)
-          ~kind:(Curried {nlocal=List.length params})
-          (* CR layouts: Adjust param layouts when we allow other things in
-             probes. *)
-          ~params
-          ~return:return_layout
-          ~body:body
-          ~loc:(of_location ~scopes exp.exp_loc)
-          ~attr
-          ~mode:alloc_heap
-          ~ret_mode:maybe_alloc_stack
-          (* CR zqian: the handler function doesn't have a region. However, the
-             [region] field is currently broken. *)
-      in
-      let ap_loc = of_location e.exp_loc ~scopes in
-      let app ~ap_probe =
-        { ap_func = Lvar funcid;
-          ap_args;
-          ap_result_layout = return_layout;
-          ap_region_close = Rc_normal;
-          ap_mode = maybe_alloc_stack;
-          (* The probe handler is the user's [%probe] body, so may yield *)
-          ap_yielding = May_yield;
-          ap_loc;
-          ap_tailcall = Default_tailcall;
-          ap_inlined = Never_inlined;
-          ap_specialised = Always_specialise;
-          ap_probe;
-        }
-      in
-      let lam =
-        if !Clflags.emit_optimized_probes then
-          let ap_probe = Some {name; enabled_at_init} in
-          Lsequence (Lapply (app ~ap_probe), lambda_unit)
-        else
-          (* Slower implementation of probes where there isn't clever
-             architecture-specific codegen. Read the semaphore each time. *)
-          (Lifthenelse
-             ( Lprim
-                 (Pprobe_is_enabled
-                    { name; enabled_at_init = Some enabled_at_init },
-                      [], ap_loc),
-               Lsequence (Lapply (app ~ap_probe:None), lambda_unit),
-               lambda_unit,
-               layout_unit ))
-      in
-      Llet(Strict, Lambda.layout_function, funcid, funcid_duid, handler, lam)
-    end else begin
+      transl_probe ~scopes ~env:e.exp_env ~loc:e.exp_loc
+        ~handler_loc:exp.exp_loc ~name ~enabled_at_init lam
+    else
       lambda_unit
-    end
   | Texp_probe_is_enabled {name} ->
     if Clflags.target_is_native () && !Clflags.probes then
       Lprim(Pprobe_is_enabled {name; enabled_at_init = None},
             [], of_location ~scopes e.exp_loc)
     else
       lambda_unit
+  | Texp_probe_point {name; index; condition} ->
+    if Clflags.target_is_native () && !Clflags.probes then begin
+      let loc = of_location ~scopes e.exp_loc in
+      let increment () =
+        Lprim (Patomic_add_field,
+               [Lprim (Pprobe_point_counts {name}, [], loc);
+                Lconst (Const_base (Const_int index));
+                Lconst (Const_base (Const_int 1))],
+               loc)
+      in
+      match condition with
+      | None ->
+        if !Clflags.emit_optimized_probes then
+          Lprim (Pprobe_point {name; index}, [], loc)
+        else
+          Lifthenelse
+            (Lprim (Pprobe_is_enabled { name; enabled_at_init = Some false },
+                    [], loc),
+             increment (), lambda_unit, layout_unit)
+      | Some condition ->
+        let condition = transl_exp ~scopes layout_int condition in
+        let handler =
+          Lifthenelse (condition, increment (), lambda_unit, layout_unit)
+        in
+        transl_probe ~scopes ~env:e.exp_env ~loc:e.exp_loc
+          ~handler_loc:e.exp_loc ~name ~enabled_at_init:false handler
+    end else
+      lambda_unit
+  | Texp_probe_point_counts {name} ->
+    let loc = of_location ~scopes e.exp_loc in
+    if Clflags.target_is_native () && !Clflags.probes then
+      Lprim (Pprobe_point_counts {name}, [], loc)
+    else
+      let length =
+        Option.value ~default:0 (Env.probe_point_counts_length name)
+      in
+      Lprim (Pmakearray (Pintarray, Mutable, alloc_heap),
+             List.init length (fun _ -> Lconst (Const_base (Const_int 0))),
+             loc)
   | Texp_exclave e ->
     let l = transl_exp ~scopes layout e in
     if Config.stack_allocation then Lexclave l

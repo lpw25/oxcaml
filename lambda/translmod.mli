@@ -30,6 +30,10 @@ open Lambda
    [transl_store_phrases], because it's only storing phrases. But [Opttoploop]
    _should not exist anymore_, since upstream refactored the toplevel code.
    mshinwell: PR4527 has now removed transl_store* *)
+(* The [probe_point_counts] field of a [Lambda.program] for the current
+   compilation unit. *)
+val probe_point_counts : unit -> (string * int) list
+
 val transl_implementation:
       Compilation_unit.t -> structure * module_coercion * module_coercion option
         -> loc:Location.t -> program

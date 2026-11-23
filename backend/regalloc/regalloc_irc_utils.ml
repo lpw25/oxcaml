@@ -145,6 +145,7 @@ let is_move_basic : Cfg.basic -> bool =
     | Floatop _ -> false
     | Csel _ -> false
     | Probe_is_enabled _ -> false
+    | Probe_point _ -> false
     | Opaque -> false
     | Begin_region -> false
     | End_region -> false

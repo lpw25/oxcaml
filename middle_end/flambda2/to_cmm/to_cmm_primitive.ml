@@ -1158,6 +1158,18 @@ let nullary_primitive _env res dbg prim =
        `to_cmm_shared.ml` *)
     let expr = Cmm.Cop (Cprobe_is_enabled { name; enabled_at_init }, [], dbg) in
     None, res, expr
+  | Probe_point { name; compilation_unit; index } ->
+    let res, counts =
+      To_cmm_result.raw_symbol res ~global:Global
+        (C.probe_point_counts_symbol_name ~compilation_unit name)
+    in
+    None, res, C.probe_point ~dbg ~name ~counts ~index
+  | Probe_point_counts { name; compilation_unit } ->
+    let res, counts =
+      To_cmm_result.raw_symbol res ~global:Global
+        (C.probe_point_counts_symbol_name ~compilation_unit name)
+    in
+    None, res, C.symbol ~dbg counts
   | Enter_inlined_apply _ ->
     Misc.fatal_errorf
       "The primitive [Enter_inlined_apply] should not be translated by \

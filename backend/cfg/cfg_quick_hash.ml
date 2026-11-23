@@ -43,6 +43,7 @@ let operation : Operation.t -> int =
   | Alloc _ -> 32
   | Const_mask _ -> 33
   | Thread_self_id -> 34
+  | Probe_point _ -> 35
 
 let basic : Cfg.basic -> int = function
   | Op op -> operation op

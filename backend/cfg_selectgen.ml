@@ -126,7 +126,7 @@ module Make (Target : Cfg_selectgen_target_intf.S) = struct
             coeffects = Has_coeffects
           }
       | Capply _ | Calloc _ | Cstore _ | Craise _ | Catomic _ | Cprobe _
-      | Cprobe_is_enabled _ | Copaque _ | Cpoll | Cpause ->
+      | Cprobe_is_enabled _ | Cprobe_point _ | Copaque _ | Cpoll | Cpause ->
         false
       | Cprefetch _ | Cbeginregion | Cendregion ->
         false
@@ -187,7 +187,8 @@ module Make (Target : Cfg_selectgen_target_intf.S) = struct
               coeffects = ce
             } ->
           EC.create (SU.select_effects e) (SU.select_coeffects ce)
-        | Capply _ | Cprobe _ | Copaque _ | Cpoll | Cpause -> EC.arbitrary
+        | Capply _ | Cprobe _ | Cprobe_point _ | Copaque _ | Cpoll | Cpause ->
+          EC.arbitrary
         | Calloc (Heap, _) -> EC.none
         | Calloc (Local, _) -> EC.coeffect_only Arbitrary
         | Cstore _ -> EC.effect_only Arbitrary
@@ -276,9 +277,9 @@ module Make (Target : Cfg_selectgen_target_intf.S) = struct
     | Const_symbol _ | Const_vec128 _ | Const_vec256 _ | Const_vec512 _
     | Const_mask _ | Stackoffset _ | Load _ | Intop _ | Int128op _ | Intop_imm _
     | Intop_atomic _ | Floatop _ | Csel _ | Reinterpret_cast _ | Static_cast _
-    | Probe_is_enabled _ | Opaque | Begin_region | End_region | Specific _
-    | Name_for_debugger _ | Dls_get | Tls_get | Domain_index | Thread_self_id
-    | Poll | Pause | Alloc _ ->
+    | Probe_is_enabled _ | Probe_point _ | Opaque | Begin_region | End_region
+    | Specific _ | Name_for_debugger _ | Dls_get | Tls_get | Domain_index
+    | Thread_self_id | Poll | Pause | Alloc _ ->
       false
 
   let bind_let (env : SU.environment) sub_cfg v r1 =
@@ -519,6 +520,8 @@ module Make (Target : Cfg_selectgen_target_intf.S) = struct
         args )
     | Cprobe_is_enabled { name; enabled_at_init } ->
       SU.basic_op (Probe_is_enabled { name; enabled_at_init }), []
+    | Cprobe_point { name; counts; index } ->
+      SU.basic_op (Probe_point { name; counts; index }), []
     | Copaque _ -> SU.basic_op Opaque, args
     | Cbeginregion -> SU.basic_op Begin_region, []
     | Cendregion -> SU.basic_op End_region, args
@@ -947,8 +950,9 @@ module Make (Target : Cfg_selectgen_target_intf.S) = struct
            | Catomic _ | Ccmpi _ | Caddv | Cadda | Cnegf _ | Cabsf _ | Caddf _
            | Csubf _ | Cmulf _ | Cdivf _ | Cpackf32 | Creinterpret_cast _
            | Cstatic_cast _ | Ccmpf _ | Cprobe _ | Cprobe_is_enabled _
-           | Copaque _ | Cbeginregion | Cendregion | Ctuple_field _ | Cdls_get
-           | Ctls_get | Cdomain_index | Cthread_self_id | Cpoll | Cpause ) as op),
+           | Cprobe_point _ | Copaque _ | Cbeginregion | Cendregion
+           | Ctuple_field _ | Cdls_get | Ctls_get | Cdomain_index
+           | Cthread_self_id | Cpoll | Cpause ) as op),
           args,
           dbg ) ->
       emit_expr_op env sub_cfg bound_name op args dbg
@@ -1012,9 +1016,9 @@ module Make (Target : Cfg_selectgen_target_intf.S) = struct
           | Cclz | Cctz | Cpopcnt | Cprefetch _ | Catomic _ | Ccmpi _ | Caddv
           | Cadda | Cnegf _ | Cabsf _ | Caddf _ | Csubf _ | Cmulf _ | Cdivf _
           | Cpackf32 | Creinterpret_cast _ | Cstatic_cast _ | Ccmpf _ | Craise _
-          | Cprobe _ | Cprobe_is_enabled _ | Copaque _ | Cbeginregion
-          | Cendregion | Ctuple_field _ | Cdls_get | Ctls_get | Cdomain_index
-          | Cthread_self_id | Cpoll | Cpause ),
+          | Cprobe _ | Cprobe_is_enabled _ | Cprobe_point _ | Copaque _
+          | Cbeginregion | Cendregion | Ctuple_field _ | Cdls_get | Ctls_get
+          | Cdomain_index | Cthread_self_id | Cpoll | Cpause ),
           _,
           _ )
     | Cconst_int _ | Cconst_natint _ | Cconst_float32 _ | Cconst_float _
@@ -1200,7 +1204,7 @@ module Make (Target : Cfg_selectgen_target_intf.S) = struct
               | Const_vec512 _ | Const_mask _ | Stackoffset _ | Load _ | Store _
               | Intop _ | Int128op _ | Intop_imm _ | Intop_atomic _ | Floatop _
               | Csel _ | Reinterpret_cast _ | Static_cast _ | Probe_is_enabled _
-              | Opaque | Begin_region | End_region | Specific _
+              | Probe_point _ | Opaque | Begin_region | End_region | Specific _
               | Name_for_debugger _ | Dls_get | Tls_get | Domain_index
               | Thread_self_id | Poll | Pause ) as op)) ->
         let* r1 = emit_tuple env sub_cfg new_args in

@@ -316,6 +316,7 @@ end = struct
     | Reinterpret_cast _, _
     | Static_cast _, _
     | Probe_is_enabled _, _
+    | Probe_point _, _
     | Opaque, _
     | Pause, _
     | Begin_region, _
@@ -824,8 +825,8 @@ end = struct
                   | Intop _ | Int128op _ | Intop_atomic _
                   | Floatop (_, _)
                   | Csel _ | Reinterpret_cast _ | Static_cast _
-                  | Probe_is_enabled _ | Specific _ | Name_for_debugger _
-                  | Alloc _ ->
+                  | Probe_is_enabled _ | Probe_point _ | Specific _
+                  | Name_for_debugger _ | Alloc _ ->
                     None))
               | _ -> None
             in
@@ -1053,7 +1054,8 @@ end = struct
             (* conservative, don't reorder around region begin/end. *)
             create Arbitrary
           | Name_for_debugger _ | Dls_get | Tls_get | Domain_index
-          | Thread_self_id | Poll | Opaque | Pause | Probe_is_enabled _ ->
+          | Thread_self_id | Poll | Opaque | Pause | Probe_is_enabled _
+          | Probe_point _ ->
             (* conservative, don't reorder around this instruction. *)
             (* CR-someday gyorsh: Poll insertion pass is after the vectorizer.
                Currently, it inserts instruction at the end of a block, so it
@@ -2326,9 +2328,10 @@ end = struct
         | Reload | Const_int _ | Const_float32 _ | Const_float _
         | Const_symbol _ | Const_vec128 _ | Const_vec256 _ | Const_vec512 _
         | Const_mask _ | Stackoffset _ | Intop _ | Int128op _ | Intop_imm _
-        | Intop_atomic _ | Floatop _ | Csel _ | Probe_is_enabled _ | Opaque
-        | Pause | Begin_region | End_region | Name_for_debugger _ | Dls_get
-        | Tls_get | Domain_index | Thread_self_id | Poll ->
+        | Intop_atomic _ | Floatop _ | Csel _ | Probe_is_enabled _
+        | Probe_point _ | Opaque | Pause | Begin_region | End_region
+        | Name_for_debugger _ | Dls_get | Tls_get | Domain_index
+        | Thread_self_id | Poll ->
           None)
 
     let from_block (block : Block.t) deps : t list =

@@ -2707,6 +2707,30 @@ let emit_instr ~first ~last ~fallthrough i =
        the correct place and managing the spilling/reloading of live registers.
        See [emit_probe_handler_wrapper] below. *)
     emit_call_probe_handler_wrapper i ~enabled_at_init ~probe_label
+  | Lop (Probe_point { name; counts; index }) ->
+    (* See [emit_probe_point_stub] below. The site is a [nopl] whose 32-bit
+       displacement is the index, then a disabled probe: a one-byte [nop] at the
+       address recorded in the note, and a [cmp] that is enabled by changing its
+       opcode to that of [call]. The bytes are emitted directly so that the
+       assembler cannot choose another encoding. *)
+    let byte b =
+      D.int8 (Numbers.Int8.of_int_exn (if b > 127 then b - 256 else b))
+    in
+    let stub = Probe_emission.find_or_add_point_stub counts in
+    let point_label = Cmm.new_label () in
+    Probe_emission.add_point ~name ~label:point_label ~dbg:i.dbg;
+    byte 0x0f;
+    byte 0x1f;
+    byte 0x80;
+    D.int32 (Int32.of_int index);
+    D.define_label (label_to_asm_label ~section:Text point_label);
+    byte 0x90;
+    byte 0x3d;
+    byte 0;
+    byte 0;
+    byte 0;
+    byte 0;
+    D.reloc_x86_64_plt32 ~offset_from_this:4L ~target_symbol:stub ~addend:4L
   | Lop (Probe_is_enabled { name; enabled_at_init }) ->
     let semaphore_sym =
       Probe_emission.find_or_add_semaphore name enabled_at_init i.dbg
@@ -3143,6 +3167,38 @@ let stack_locations ~offset regs =
   in
   locs |> Array.of_list
 
+(* The stub called by enabled [%probe_point] sites incrementing the [counts]
+   array. Sites are 13 bytes long and the call is their last 5 bytes, so the
+   return address is the end of the site and the index is at offset -10 from it.
+   The stub preserves all registers except the flags, uses at most 32 bytes of
+   stack, and never allocates, polls or raises. *)
+let emit_probe_point_stub ((counts : Cmm.symbol), stub) =
+  let rcx = X86_ast.Reg64 RCX in
+  stack_offset := 0;
+  emit_named_text_section (S.encode stub);
+  D.align ~fill:Nop ~bytes:16;
+  D.define_symbol_label ~section:Text stub;
+  D.cfi_startproc ();
+  if fp
+  then (
+    push rbp;
+    I.mov rsp rbp);
+  push rax;
+  push rcx;
+  (* Load the return address. *)
+  if fp
+  then I.mov (mem64 QWORD 8 (Scalar RBP)) rcx
+  else I.mov (mem64 QWORD 16 (Scalar RSP)) rcx;
+  I.movsxd (mem64 DWORD (-10) (Scalar RCX)) rcx;
+  load_symbol_addr counts rax;
+  (* Counts are tagged integers. *)
+  I.lock_add (int 2) (mem64 QWORD ~scale:8 ~base:RAX 0 (Scalar RCX));
+  pop rcx;
+  pop rax;
+  if fp then pop rbp;
+  I.ret ();
+  D.cfi_endproc ()
+
 let emit_probe_handler_wrapper (p : Probe_emission.probe) =
   let wrap_label = probe_handler_wrapper_name p.probe_label in
   let probe_name = p.probe_name in
@@ -3307,6 +3363,7 @@ let end_assembly () =
     List.iter (fun (cst, lbl) -> emit_vec512_constant cst lbl) !vec512_constants);
   (* Emit probe handler wrappers *)
   List.iter emit_probe_handler_wrapper (Probe_emission.get_probes ());
+  List.iter emit_probe_point_stub (Probe_emission.get_point_stubs ());
   emit_named_text_section (Cmm_helpers.make_symbol "jump_tables");
   emit_jump_tables ();
   let code_end = Cmm_helpers.make_symbol "code_end" in

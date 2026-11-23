@@ -102,7 +102,7 @@ module Make (T : Branch_relaxation_intf.S) = struct
           | Intop_atomic _
           | Floatop (_, _)
           | Csel _ | Reinterpret_cast _ | Static_cast _ | Probe_is_enabled _
-          | Name_for_debugger _ )
+          | Probe_point _ | Name_for_debugger _ )
       | Lprologue | Lepilogue_open | Lepilogue_close | Lend | Lreloadretaddr
       | Lreturn | Lentertrap | Lpoptrap _ | Lcall_op _
       | Llabel_for_jump_target _ | Llabel_for_dwarf _ | Lbranch _ | Lswitch _
@@ -240,7 +240,7 @@ module Make (T : Branch_relaxation_intf.S) = struct
               | Intop_atomic _
               | Floatop (_, _)
               | Csel _ | Reinterpret_cast _ | Static_cast _ | Probe_is_enabled _
-              | Name_for_debugger _ | Specific _ ) ->
+              | Probe_point _ | Name_for_debugger _ | Specific _ ) ->
             (* For every instruction reaching this point, [instr_overflows]
                above either raised a fatal error or returned [false], so
                [overflows] was never [true] and this branch is unreachable. *)

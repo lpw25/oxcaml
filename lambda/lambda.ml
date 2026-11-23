@@ -468,6 +468,8 @@ type primitive =
   | Popaque of layout
   (* Statically-defined probes *)
   | Pprobe_is_enabled of { name: string; enabled_at_init: bool option }
+  | Pprobe_point of { name: string; index: int }
+  | Pprobe_point_counts of { name: string }
   (* Primitives for [Obj] *)
   | Pobj_dup
   | Pobj_magic of layout
@@ -1467,6 +1469,9 @@ type program =
   { compilation_unit : Compilation_unit.t;
     main_module_block_format : main_module_block_format;
     required_globals : Compilation_unit.Set.t;
+    probe_point_counts : (string * int) list;
+                                        (* The length of the counts array for
+                                           each [%probe_point] name used. *)
     code : lambda }
 
 let const_int n = Const_base (Const_int n)
@@ -2992,7 +2997,7 @@ let primitive_may_allocate : primitive -> locality_mode option = function
   | Pctconst _ -> None
   | Pint_as_pointer m -> Some m
   | Popaque _ -> None
-  | Pprobe_is_enabled _ -> None
+  | Pprobe_is_enabled _ | Pprobe_point _ | Pprobe_point_counts _ -> None
   | Pobj_dup -> Some alloc_heap
   | Pobj_magic _ -> None
   | Punbox_vector _ -> None
@@ -3221,7 +3226,8 @@ let primitive_can_raise prim =
   | Punboxed_int64_array_set_vec { unsafe = true; _ }
   | Punboxed_nativeint_array_set_vec { unsafe = true; _ }
   | Pctconst _ | Pint_as_pointer _ | Popaque _
-  | Pprobe_is_enabled _ | Pobj_dup | Pobj_magic _
+  | Pprobe_is_enabled _ | Pprobe_point _ | Pprobe_point_counts _
+  | Pobj_dup | Pobj_magic _
   | Pbox_vector (_, _) | Punbox_vector _
   | Pbox_mask _ | Punbox_mask
   | Pjoin_vec256 | Psplit_vec256
@@ -3593,7 +3599,9 @@ let primitive_result_layout (p : primitive) =
   | Punboxed_int32_array_set_vec _ | Punboxed_int64_array_set_vec _
   | Punboxed_nativeint_array_set_vec _
   | Parrayblit _
+  | Pprobe_point _
     -> layout_unit
+  | Pprobe_point_counts _ -> layout_array Pintarray
   | Pgetglobal _ -> layout_module
     (* Note the assumption that predefs are always values *)
   | Pgetpredef _ -> layout_predef_value

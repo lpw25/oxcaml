@@ -518,6 +518,8 @@ let expr sub {exp_loc; exp_extra; exp_desc; exp_env; exp_attributes; _} =
       sub.expr sub e
   | Texp_probe {handler;_} -> sub.expr sub handler
   | Texp_probe_is_enabled _ -> ()
+  | Texp_probe_point {condition; _} -> Option.iter (sub.expr sub) condition
+  | Texp_probe_point_counts _ -> ()
   | Texp_exclave exp -> sub.expr sub exp
   | Texp_src_pos -> ()
   | Texp_overwrite(exp1, exp2) ->

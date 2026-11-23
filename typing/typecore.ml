@@ -280,6 +280,10 @@ type error =
   | Probe_name_format of string
   | Probe_name_undefined of string
   | Probe_is_enabled_format
+  | Probe_point_format
+  | Probe_point_index_out_of_range of string
+  | Probe_point_name_undefined of string
+  | Probe_point_counts_format
   | Extension_not_enabled : _ Language_extension.t -> error
   | Modalities_on_atomic_field of Longident.t
   | Literal_overflow of string
@@ -608,6 +612,7 @@ type recarg =
   | Rejected
 
 let probe_name_max_length = 100
+let probe_point_index_limit = 1 lsl 20
 let check_probe_name name loc env =
   if String.length name > probe_name_max_length then
     Location.prerr_warning loc (Warnings.Probe_name_too_long name);
@@ -5759,6 +5764,8 @@ let rec is_nonexpansive exp =
            && not (contains_exception_pat c_lhs)
         ) cases
   | Texp_probe {handler} -> is_nonexpansive handler
+  | Texp_probe_point {condition} -> is_nonexpansive_opt condition
+  | Texp_probe_point_counts _ -> true
   | Texp_tuple (el, _) ->
       List.for_all (fun (_,e,_) -> is_nonexpansive e) el
   | Texp_unboxed_tuple el ->
@@ -6039,6 +6046,8 @@ let rec maybe_computation exp =
   | Texp_open _
   | Texp_probe _
   | Texp_probe_is_enabled _
+  | Texp_probe_point _
+  | Texp_probe_point_counts _
   | Texp_exclave _
   | Texp_src_pos
   | Texp_overwrite _
@@ -6453,7 +6462,8 @@ let check_partial_application ~statement exp =
             | Texp_setinstvar _ | Texp_override _ | Texp_assert _
             | Texp_lazy _ | Texp_object _ | Texp_pack _ | Texp_unreachable
             | Texp_extension_constructor _ | Texp_ifthenelse (_, _, None)
-            | Texp_probe _ | Texp_probe_is_enabled _ | Texp_src_pos
+            | Texp_probe _ | Texp_probe_is_enabled _ | Texp_probe_point _
+            | Texp_probe_point_counts _ | Texp_src_pos
             | Texp_function _ | Texp_quote _ | Texp_splice _ ->
                 check_statement ()
             | Texp_match (_, _, cases, eff_cases, _) ->
@@ -9459,6 +9469,93 @@ and type_expect_
           exp_env = env }
       | _ -> Error.log_and_raise loc env Probe_is_enabled_format
     end
+  | Pexp_extension ({ txt = ("probe_point" | "ocaml.probe_point"); _ },
+                   payload) ->
+      let name, name_loc, index_loc, index, condition =
+        match payload with
+        | PStr ([{ pstr_desc =
+                     Pstr_eval
+                       ({pexp_desc =
+                           Pexp_apply
+                             ({pexp_desc =
+                                 Pexp_constant
+                                   { pconst_desc =
+                                       Pconst_string(name,_,None); _};
+                               pexp_loc = name_loc; _ },
+                              (Nolabel,
+                               { pexp_desc =
+                                   Pexp_constant
+                                     { pconst_desc =
+                                         Pconst_integer(index, None); _};
+                                 pexp_loc = index_loc; _ })
+                              :: condition);
+                         _ },
+                        _)}]) ->
+            let condition =
+              match condition with
+              | [] -> None
+              | [Nolabel, condition] -> Some condition
+              | _ -> Error.log_and_raise loc env Probe_point_format
+            in
+            name, name_loc, index_loc, index, condition
+        | _ -> Error.log_and_raise loc env Probe_point_format
+      in
+      check_probe_name name name_loc env;
+      let index =
+        match int_of_string_opt index with
+        | Some i when i >= 0 && i < probe_point_index_limit -> i
+        | Some _ | None ->
+            Error.log_and_raise index_loc env
+              (Probe_point_index_out_of_range index)
+      in
+      Env.add_probe_point name index;
+      let condition =
+        Option.map
+          (fun condition ->
+             type_expect env mode_legacy condition
+               (mk_expected Predef.type_bool))
+          condition
+      in
+      rue {
+        exp_desc = Texp_probe_point {name; index; condition};
+        exp_loc = loc; exp_extra = [];
+        exp_type = instance Predef.type_unit;
+        exp_attributes = sexp.pexp_attributes;
+        exp_env = env }
+  | Pexp_extension ({ txt = ("probe_point_counts"
+                            | "ocaml.probe_point_counts"); _ },
+                    payload) ->
+      begin match payload with
+      | PStr ([{ pstr_desc =
+                   Pstr_eval
+                     ({pexp_desc=
+                         (Pexp_constant
+                            { pconst_desc = Pconst_string(name,_,None); _});
+                       pexp_loc = name_loc;
+                       _ } ,
+                      _)}]) ->
+        check_probe_name name name_loc env;
+        add_delayed_check
+          (fun () ->
+             if Option.is_none (Env.probe_point_counts_length name) then
+               Error.log_and_raise name_loc env
+                 (Probe_point_name_undefined name));
+        (* The array is shared by every domain, and its elements may only be
+           accessed atomically. *)
+        let mode =
+          With_regionality.of_const
+            { With_regionality.Const.legacy with
+              contention = Contended; portability = Portable }
+        in
+        submode ~loc ~env mode expected_mode;
+        rue {
+          exp_desc = Texp_probe_point_counts {name};
+          exp_loc = loc; exp_extra = [];
+          exp_type = instance (Predef.type_array Predef.type_int);
+          exp_attributes = sexp.pexp_attributes;
+          exp_env = env }
+      | _ -> Error.log_and_raise loc env Probe_point_counts_format
+      end
   | Pexp_extension ({ txt = "src_pos"; _ }, _) ->
       rue (src_pos loc sexp.pexp_attributes env)
   | Pexp_extension ({ txt = ("ocaml.atomic.loc"
@@ -14335,6 +14432,25 @@ let report_error ~loc env =
   | Probe_is_enabled_format ->
       Location.errorf ~loc
         "%%probe_is_enabled points must specify a single probe name as a \
+         string literal"
+  | Probe_point_format ->
+      Location.errorf ~loc
+        "%%probe_point must consist of a name, as a string literal, followed \
+         by an index, as an integer literal, optionally followed by a \
+         single expression of type bool"
+  | Probe_point_index_out_of_range index ->
+      Location.errorf ~loc
+        "The index %s of this %%probe_point is out of range. Indices must \
+         be at least 0 and less than %d."
+        index probe_point_index_limit
+  | Probe_point_name_undefined name ->
+      Location.errorf ~loc
+        "Undefined probe point name `%s' used in %%probe_point_counts. \
+         Not found [%%probe_point \"%s\" ...] in the same compilation unit."
+        name name
+  | Probe_point_counts_format ->
+      Location.errorf ~loc
+        "%%probe_point_counts must specify a single probe name as a \
          string literal"
   | Extension_not_enabled ext ->
     let name = Language_extension.to_string ext in

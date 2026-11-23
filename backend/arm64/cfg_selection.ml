@@ -251,9 +251,9 @@ let select_operation' ~generic_select_condition:_ (op : Cmm.operation)
   | Caddi128 | Csubi128 | Cmuli64 _ | Cand | Cor | Cxor | Cnot | Clsl | Clsr
   | Ccsel _ | Cclz | Cctz | Cpopcnt | Cprefetch _ | Catomic _ | Ccmpi _
   | Cabsf _ | Cmulf _ | Cdivf _ | Creinterpret_cast _ | Cstatic_cast _ | Ccmpf _
-  | Craise _ | Cprobe _ | Cprobe_is_enabled _ | Copaque _ | Cbeginregion
-  | Cendregion | Ctuple_field _ | Cdls_get | Ctls_get | Cdomain_index
-  | Cthread_self_id | Cpoll | Cpause ->
+  | Craise _ | Cprobe _ | Cprobe_is_enabled _ | Cprobe_point _ | Copaque _
+  | Cbeginregion | Cendregion | Ctuple_field _ | Cdls_get | Ctls_get
+  | Cdomain_index | Cthread_self_id | Cpoll | Cpause ->
     Use_default
 
 let select_operation
@@ -320,7 +320,7 @@ let pseudoregs_for_operation op arg res =
   | Intop_atomic _
   | Floatop (_, _)
   | Csel _ | Reinterpret_cast _ | Static_cast _ | Probe_is_enabled _
-  | Name_for_debugger _ | Alloc _ ->
+  | Probe_point _ | Name_for_debugger _ | Alloc _ ->
     raise Use_default_exn
   | Specific (Illvm_intrinsic intr) ->
     Misc.fatal_errorf

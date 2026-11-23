@@ -799,6 +799,8 @@ type preproc_stack_check_result =
     contains_nontail_calls : bool
   }
 
+let probe_point_stack_usage = 32
+
 let preproc_stack_check ~fun_body ~frame_size ~trap_size =
   let rec loop (i : Linear.instruction) fs max_fs nontail_flag =
     match i.desc with
@@ -814,6 +816,8 @@ let preproc_stack_check ~fun_body ~frame_size ~trap_size =
       let s = fs + n in
       loop i.next s (max s max_fs) nontail_flag
     | Lcall_op (Lcall_ind | Lcall_imm _) -> loop i.next fs max_fs true
+    | Lop (Probe_point _) ->
+      loop i.next fs (max (fs + probe_point_stack_usage) max_fs) nontail_flag
     | Lprologue | Lepilogue_open | Lepilogue_close
     | Lop
         ( Move | Spill | Reload | Opaque | Begin_region | End_region | Dls_get

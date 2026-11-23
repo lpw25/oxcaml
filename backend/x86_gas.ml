@@ -99,6 +99,14 @@ let i2_s b s x y = bprintf b "\t%s%s\t%a, %a" s (suf y) arg x arg y
 
 let i2_sx b s x y = bprintf b "\t%s%s\t%a, %a" s (suf x) arg x arg y
 
+(* Like [i2_sx], but an immediate source has no size, so then use [y]'s. *)
+let i2_si b s x y =
+  match x with
+  | Imm _ -> i2_s b s x y
+  | Sym _ | Reg8L _ | Reg8H _ | Reg16 _ | Reg32 _ | Reg64 _ | Regf _ | Regmask _
+  | Mem _ | Mem64_RIP _ ->
+    i2_sx b s x y
+
 let i2_ss b s x y = bprintf b "\t%s%s%s\t%a, %a" s (suf x) (suf y) arg x arg y
 
 let i3 b s x y z = bprintf b "\t%s\t%a, %a, %a" s arg x arg y arg z
@@ -221,11 +229,11 @@ let print_instr b = function
   | LEA (arg1, arg2) -> i2_s b "lea" arg1 arg2
   | LOCK_CMPXCHG (arg1, arg2) -> i2_sx b "lock cmpxchg" arg1 arg2
   | LOCK_XADD (arg1, arg2) -> i2_sx b "lock xadd" arg1 arg2
-  | LOCK_ADD (arg1, arg2) -> i2_sx b "lock add" arg1 arg2
-  | LOCK_SUB (arg1, arg2) -> i2_sx b "lock sub" arg1 arg2
-  | LOCK_AND (arg1, arg2) -> i2_sx b "lock and" arg1 arg2
-  | LOCK_OR (arg1, arg2) -> i2_sx b "lock or" arg1 arg2
-  | LOCK_XOR (arg1, arg2) -> i2_sx b "lock xor" arg1 arg2
+  | LOCK_ADD (arg1, arg2) -> i2_si b "lock add" arg1 arg2
+  | LOCK_SUB (arg1, arg2) -> i2_si b "lock sub" arg1 arg2
+  | LOCK_AND (arg1, arg2) -> i2_si b "lock and" arg1 arg2
+  | LOCK_OR (arg1, arg2) -> i2_si b "lock or" arg1 arg2
+  | LOCK_XOR (arg1, arg2) -> i2_si b "lock xor" arg1 arg2
   | LEAVE -> i0 b "leave"
   | MOV ((Imm n as arg1), (Reg64 _ as arg2))
     when not

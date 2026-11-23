@@ -377,6 +377,7 @@ end = struct
       | Reinterpret_cast _ | Static_cast _ ->
         check ~expected_args:[1] ~expected_res:[1]
       | Probe_is_enabled _ -> check ~expected_args:[0] ~expected_res:[1]
+      | Probe_point _ -> check ~expected_args:[0] ~expected_res:[0]
       | Opaque ->
         let len_args = Array.length args in
         let len_res = Array.length res in
@@ -523,9 +524,10 @@ end = struct
               | Const_vec256 _ | Const_vec512 _ | Const_mask _ | Load _
               | Store _ | Intop _ | Int128op _ | Intop_imm _ | Intop_atomic _
               | Floatop _ | Csel _ | Static_cast _ | Reinterpret_cast _
-              | Probe_is_enabled _ | Opaque | Begin_region | End_region
-              | Specific _ | Name_for_debugger _ | Dls_get | Tls_get
-              | Domain_index | Thread_self_id | Poll | Pause | Alloc _ )
+              | Probe_is_enabled _ | Probe_point _ | Opaque | Begin_region
+              | End_region | Specific _ | Name_for_debugger _ | Dls_get
+              | Tls_get | Domain_index | Thread_self_id | Poll | Pause | Alloc _
+                )
           | Reloadretaddr | Prologue | Epilogue | Stack_check _ ->
             cur_stack_offset)
     in

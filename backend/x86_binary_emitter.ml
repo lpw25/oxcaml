@@ -1379,25 +1379,45 @@ let emit_LEA b dst src =
       Format.eprintf "lea src=%a dst=%a@." print_old_arg src print_old_arg dst;
       assert false
 
-let emit_lock_op ~ops b dst src =
-  let rex, rm, reg = match (dst, src) with
-  | ((Mem _ | Mem64_RIP _) as rm), Reg64 reg ->
-    rexw, rm, rd_of_reg64 reg
-  | ((Mem _ | Mem64_RIP _) as rm), Reg32 reg ->
-    no_rex, rm, rd_of_reg64 reg
-  | _ ->
+(* [imm_reg] is the opcode extension of the form of the instruction with an
+   immediate source, if there is one. *)
+let emit_lock_op ?imm_reg ~ops b dst src =
+  let fail () =
     Misc.fatal_errorf "lock op src=%a dst=%a@." print_old_arg src print_old_arg dst
   in
   buf_int8 b 0xF0;
-  emit_mod_rm_reg b rex ops rm reg
+  match (dst, src, imm_reg) with
+  | ((Mem _ | Mem64_RIP _) as rm), Reg64 reg, _ ->
+    emit_mod_rm_reg b rexw ops rm (rd_of_reg64 reg)
+  | ((Mem _ | Mem64_RIP _) as rm), Reg32 reg, _ ->
+    emit_mod_rm_reg b no_rex ops rm (rd_of_reg64 reg)
+  | ((Mem { typ = DWORD; _ } | Mem64_RIP (DWORD, _, _)) as rm), Imm n,
+    Some reg ->
+    if is_imm8L n then begin
+      emit_mod_rm_reg b no_rex [ 0x83 ] rm reg;
+      buf_int8L b n
+    end else begin
+      emit_mod_rm_reg b no_rex [ 0x81 ] rm reg;
+      buf_int32_imm b src
+    end
+  | ((Mem { typ = QWORD; _ } | Mem64_RIP (QWORD, _, _)) as rm), Imm n,
+    Some reg ->
+    if is_imm8L n then begin
+      emit_mod_rm_reg b rexw [ 0x83 ] rm reg;
+      buf_int8L b n
+    end else begin
+      emit_mod_rm_reg b rexw [ 0x81 ] rm reg;
+      buf_int32_imm b src
+    end
+  | _ -> fail ()
 
 let emit_lock_cmpxchg = emit_lock_op ~ops:[ 0x0F; 0xB1 ]
 let emit_lock_xadd = emit_lock_op ~ops:[ 0x0F; 0xC1 ]
-let emit_lock_add = emit_lock_op ~ops:[ 0x01 ]
-let emit_lock_sub = emit_lock_op ~ops:[ 0x29 ]
-let emit_lock_and = emit_lock_op ~ops:[ 0x21 ]
-let emit_lock_or = emit_lock_op ~ops:[ 0x09 ]
-let emit_lock_xor = emit_lock_op ~ops:[ 0x31 ]
+let emit_lock_add = emit_lock_op ~imm_reg:0 ~ops:[ 0x01 ]
+let emit_lock_sub = emit_lock_op ~imm_reg:5 ~ops:[ 0x29 ]
+let emit_lock_and = emit_lock_op ~imm_reg:4 ~ops:[ 0x21 ]
+let emit_lock_or = emit_lock_op ~imm_reg:1 ~ops:[ 0x09 ]
+let emit_lock_xor = emit_lock_op ~imm_reg:6 ~ops:[ 0x31 ]
 
 let emit_stack_reg b opcode dst =
   match dst with

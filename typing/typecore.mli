@@ -365,6 +365,10 @@ type error =
   | Probe_name_undefined of string
   (* CR-soon mshinwell: Use an inlined record *)
   | Probe_is_enabled_format
+  | Probe_point_format
+  | Probe_point_index_out_of_range of string
+  | Probe_point_name_undefined of string
+  | Probe_point_counts_format
   | Extension_not_enabled : _ Language_extension.t -> error
   | Modalities_on_atomic_field of Longident.t
   | Literal_overflow of string

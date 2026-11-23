@@ -578,6 +578,8 @@ let compute_static_size lam =
     | Punboxed_int64_array_load_vec _
     | Punboxed_nativeint_array_load_vec _
     | Pprobe_is_enabled _
+    | Pprobe_point _
+    | Pprobe_point_counts _
     | Pobj_magic _
     | Punbox_vector _
     | Pbox_vector (_, _)

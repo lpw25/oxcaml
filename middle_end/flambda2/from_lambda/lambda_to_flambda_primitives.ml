@@ -3374,6 +3374,14 @@ let convert_lprim ~(machine_width : Target_system.Machine_width.t) ~big_endian
     ]
   | Pprobe_is_enabled { name; enabled_at_init }, [] ->
     [tag_int (Nullary (Probe_is_enabled { name; enabled_at_init }))]
+  | Pprobe_point { name; index }, [] ->
+    [ Nullary
+        (Probe_point
+           { name; compilation_unit = Current_unit.get_cu_exn (); index }) ]
+  | Pprobe_point_counts { name }, [] ->
+    [ Nullary
+        (Probe_point_counts
+           { name; compilation_unit = Current_unit.get_cu_exn () }) ]
   | Pobj_dup, [[v]] ->
     [Unary (Obj_dup { alloc_region = current_alloc_region }, v)]
   | Pget_header m, [[obj]] ->
@@ -3638,8 +3646,9 @@ let convert_lprim ~(machine_width : Target_system.Machine_width.t) ~big_endian
        here, either a bug in [Closure_conversion] or the wrong number of \
        arguments"
       Printlambda.primitive prim H.print_list_of_lists_of_simple_or_prim args
-  | (Pprobe_is_enabled _ | Pmake_idx_field _ | Pmake_idx_mixed_field _), _ :: _
-    ->
+  | ( ( Pprobe_is_enabled _ | Pprobe_point _ | Pprobe_point_counts _
+      | Pmake_idx_field _ | Pmake_idx_mixed_field _ ),
+      _ :: _ ) ->
     Misc.fatal_errorf
       "Closure_conversion.convert_primitive: Wrong arity for nullary primitive \
        %a (%a)"

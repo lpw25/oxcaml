@@ -164,7 +164,8 @@ let nullary_exn ~env ~res (f : Flambda_primitive.nullary_primitive) =
     (* For phantom lets, which are kept around for debugging information for
        pieces of code that were optimised away. *)
     no_op ~env ~res
-  | Probe_is_enabled _ -> raise Primitive_not_supported
+  | Probe_is_enabled _ | Probe_point _ | Probe_point_counts _ ->
+    raise Primitive_not_supported
   | Enter_inlined_apply _ ->
     (* CR selee: we should eventually use this debuginfo *)
     no_op ~env ~res

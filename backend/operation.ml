@@ -320,6 +320,11 @@ type t =
       { name : string;
         enabled_at_init : bool option
       }
+  | Probe_point of
+      { name : string;
+        counts : Cmm.symbol;
+        index : int
+      }
   | Opaque
   | Begin_region
   | End_region
@@ -373,6 +378,7 @@ let is_pure = function
      emit. *)
   | Reinterpret_cast (Value_of_int | Int_of_value) -> false
   | Probe_is_enabled _ -> true
+  | Probe_point _ -> false
   | Opaque -> false
   | Begin_region -> false
   | End_region -> false
@@ -472,6 +478,8 @@ let dump ppf op =
       (match enabled_at_init with
       | None | Some false -> ""
       | Some true -> " enabled_at_init")
+  | Probe_point { name; counts; index } ->
+    Format.fprintf ppf "probe_point %s %s %d" name counts.sym_name index
   | Opaque -> Format.fprintf ppf "opaque"
   | Begin_region -> Format.fprintf ppf "beginregion"
   | End_region -> Format.fprintf ppf "endregion"
@@ -602,6 +610,12 @@ let equal left right =
       Probe_is_enabled { name = right_name; enabled_at_init = right_eai } ) ->
     String.equal left_name right_name
     && Option.equal Bool.equal left_eai right_eai
+  | ( Probe_point { name = left_name; counts = left_sym; index = left_index },
+      Probe_point { name = right_name; counts = right_sym; index = right_index }
+    ) ->
+    String.equal left_name right_name
+    && String.equal left_sym.sym_name right_sym.sym_name
+    && Int.equal left_index right_index
   | Opaque, Opaque | Begin_region, Begin_region | End_region, End_region -> true
   | Specific left_op, Specific right_op ->
     Arch.equal_specific_operation left_op right_op
@@ -633,8 +647,8 @@ let equal left right =
       | Const_symbol _ | Const_vec128 _ | Const_vec256 _ | Const_vec512 _
       | Const_mask _ | Stackoffset _ | Load _ | Store _ | Intop _ | Int128op _
       | Intop_imm _ | Intop_atomic _ | Floatop _ | Csel _ | Reinterpret_cast _
-      | Static_cast _ | Probe_is_enabled _ | Opaque | Begin_region | End_region
-      | Specific _ | Name_for_debugger _ | Dls_get | Tls_get | Domain_index
-      | Thread_self_id | Poll | Pause | Alloc _ ),
+      | Static_cast _ | Probe_is_enabled _ | Probe_point _ | Opaque
+      | Begin_region | End_region | Specific _ | Name_for_debugger _ | Dls_get
+      | Tls_get | Domain_index | Thread_self_id | Poll | Pause | Alloc _ ),
       _ ) ->
     false

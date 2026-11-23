@@ -376,6 +376,7 @@ let load_tlambda ppf ~compilation_unit ~required_globals tlam repr =
       main_module_block_format = Mb_struct { mb_repr = repr };
       compilation_unit;
       required_globals;
+      probe_point_counts = Translmod.probe_point_counts ();
     }
   in
   match !jit with

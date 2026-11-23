@@ -50,7 +50,7 @@ let basic (map : spilled_map) (instr : Cfg.basic Cfg.instruction) =
       | Intop_atomic _
       | Floatop (_, _)
       | Csel _ | Reinterpret_cast _ | Static_cast _ | Probe_is_enabled _
-      | Name_for_debugger _ | Alloc _ )
+      | Probe_point _ | Name_for_debugger _ | Alloc _ )
   | Reloadretaddr | Prologue | Epilogue | Pushtrap _ | Poptrap _ | Stack_check _
     ->
     (* no rewrite *)

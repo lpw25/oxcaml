@@ -958,6 +958,8 @@ let primitive ppf = function
   | Pthread_self_id -> fprintf ppf "thread_self_id"
   | Pcpu_relax -> fprintf ppf "cpu_relax"
   | Pprobe_is_enabled {name} -> fprintf ppf "probe_is_enabled[%s]" name
+  | Pprobe_point {name; index} -> fprintf ppf "probe_point[%s %d]" name index
+  | Pprobe_point_counts {name} -> fprintf ppf "probe_point_counts[%s]" name
   | Pobj_dup -> fprintf ppf "obj_dup"
   | Pobj_magic _ -> fprintf ppf "obj_magic"
   | Punbox_unit -> fprintf ppf "unbox_unit"
@@ -1197,6 +1199,8 @@ let name_of_primitive = function
   | Pdomain_index -> "Pdomain_index"
   | Pthread_self_id -> "Pthread_self_id"
   | Pprobe_is_enabled _ -> "Pprobe_is_enabled"
+  | Pprobe_point _ -> "Pprobe_point"
+  | Pprobe_point_counts _ -> "Pprobe_point_counts"
   | Pobj_dup -> "Pobj_dup"
   | Pobj_magic _ -> "Pobj_magic"
   | Punbox_unit -> "Punbox_unit"

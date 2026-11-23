@@ -1371,10 +1371,10 @@ and eval_prim ?name ctx env old_lambda old_prim old_args loc =
   | Patomic_fetch_add_field | Patomic_add_field | Patomic_sub_field
   | Patomic_land_field | Patomic_lor_field | Patomic_lxor_field
   | Patomic_fetch_add_idx | Patomic_add_idx | Patomic_sub_idx | Patomic_land_idx
-  | Patomic_lor_idx | Patomic_lxor_idx | Pprobe_is_enabled _ | Pobj_dup
-  | Punbox_unit | Punbox_vector _ | Pbox_vector _ | Punbox_mask | Pbox_mask _
-  | Pjoin_vec256 | Psplit_vec256 | Preinterpret_boxed_vector_as_tuple _
-  | Preinterpret_tuple_as_boxed_vector _
+  | Patomic_lor_idx | Patomic_lxor_idx | Pprobe_is_enabled _ | Pprobe_point _
+  | Pprobe_point_counts _ | Pobj_dup | Punbox_unit | Punbox_vector _
+  | Pbox_vector _ | Punbox_mask | Pbox_mask _ | Pjoin_vec256 | Psplit_vec256
+  | Preinterpret_boxed_vector_as_tuple _ | Preinterpret_tuple_as_boxed_vector _
   | Preinterpret_unboxed_int64_as_tagged_int63
   | Preinterpret_tagged_int63_as_unboxed_int64 | Parray_to_iarray
   | Parray_of_iarray | Pget_header _ | Ppeek _ | Ppoke _ | Pdls_get | Ptls_get

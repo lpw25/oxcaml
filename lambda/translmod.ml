@@ -1096,6 +1096,9 @@ let scan_used_globals lam =
   in
   scan lam; !globals
 
+let probe_point_counts () =
+  Misc.Stdlib.String.Map.bindings (Env.probe_point_counts_lengths ())
+
 let required_globals ~flambda body =
   let globals = scan_used_globals body in
   let add_global comp_unit req =
@@ -1269,6 +1272,7 @@ let transl_implementation compilation_unit impl ~loc =
   { compilation_unit;
     main_module_block_format;
     required_globals = required_globals ~flambda:true body;
+    probe_point_counts = probe_point_counts ();
     code = body }
 
 
@@ -1579,6 +1583,8 @@ let transl_instance_impl
     code;
     main_module_block_format;
     required_globals;
+    (* The template's probe point counts belong to the template. *)
+    probe_point_counts = [];
   }
 
 let transl_instance instance_unit ~runtime_args ~main_module_block_repr =
@@ -1928,6 +1934,7 @@ let transl_functorization compilation_unit
   { compilation_unit;
     main_module_block_format;
     required_globals;
+    probe_point_counts = probe_point_counts ();
     code
   }
 

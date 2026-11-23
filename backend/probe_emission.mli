@@ -59,6 +59,18 @@ val add_probe :
   probe_insn:Linear.instruction ->
   unit
 
+(** Add a [%probe_point] site. [label] is the address recorded in its
+    .note.stapsdt note. *)
+val add_point : name:string -> label:Label.t -> dbg:Debuginfo.t -> unit
+
+(** The local symbol of the stub that increments the counts array [counts], for
+    use by [%probe_point] sites. *)
+val find_or_add_point_stub : Cmm.symbol -> Asm_targets.Asm_symbol.t
+
+(** The counts array and stub symbols of the stubs needed in this compilation
+    unit. *)
+val get_point_stubs : unit -> (Cmm.symbol * Asm_targets.Asm_symbol.t) list
+
 (** Reset the probe semaphore registry *)
 val reset : unit -> unit
 

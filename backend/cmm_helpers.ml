@@ -5819,6 +5819,23 @@ let reperform ~dbg ~eff ~cont ~last_fiber =
 
 let poll ~dbg = return_unit dbg (Cop (Cpoll, [], dbg))
 
+let probe_point_counts_symbol_name ~compilation_unit name =
+  make_symbol ~compilation_unit ("probe_point_counts_" ^ name)
+
+let probe_point ~dbg ~name ~counts ~index =
+  return_unit dbg (Cop (Cprobe_point { name; counts; index }, [], dbg))
+
+let probe_point_counts_data ~compilation_unit (name, length) =
+  let symbol =
+    { sym_name = probe_point_counts_symbol_name ~compilation_unit name;
+      sym_global = Global
+    }
+  in
+  (* A statically-allocated [int array] whose elements are all [0]. *)
+  Cdata
+    ((Cint (black_block_header 0 length) :: cdefine_symbol symbol)
+    @ List.init length (fun _ -> Cint 1n))
+
 let cpu_relax ~dbg =
   let pause = return_unit dbg (Cop (Cpause, [], dbg)) in
   if Config.poll_insertion then pause else sequence pause (poll ~dbg)

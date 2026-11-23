@@ -3849,7 +3849,8 @@ and quote_expression_desc ~scopes ~transl stage e : Exp_desc.t =
     | Texp_object _ ->
       fatal_errorf "Translquote [at %a]: cannot quote object construction"
         Location.print_loc (to_location loc)
-    | Texp_probe _ | Texp_probe_is_enabled _ ->
+    | Texp_probe _ | Texp_probe_is_enabled _ | Texp_probe_point _
+    | Texp_probe_point_counts _ ->
       fatal_errorf "Translquote [at %a]: probes" Location.print_loc
         (to_location loc)
     | Texp_mutvar _ | Texp_letmutable _ | Texp_setmutvar _ ->

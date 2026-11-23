@@ -987,7 +987,7 @@ let rec choice ctx t =
 
     | Pobj_dup
     | Pobj_magic _
-    | Pprobe_is_enabled _
+    | Pprobe_is_enabled _ | Pprobe_point _ | Pprobe_point_counts _
 
     (* Lazy blocks should never contain a recursive call directly:
        either it's a closure (Lazy_tag), or a variable (Forward_tag).

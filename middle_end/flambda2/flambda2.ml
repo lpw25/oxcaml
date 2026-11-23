@@ -440,6 +440,13 @@ let lambda_to_cmm ~ppf_dump ~prefixname ~machine_width ~keep_symbol_tables
     let cmm =
       Flambda2_to_cmm.To_cmm.unit flambda ~all_code ~offsets ~reachable_names
     in
+    let cmm =
+      cmm
+      @ List.map
+          (Cmm_helpers.probe_point_counts_data
+             ~compilation_unit:program.compilation_unit)
+          program.probe_point_counts
+    in
     if not keep_symbol_tables then reset_symbol_tables ();
     cmm
   in

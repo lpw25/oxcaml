@@ -639,6 +639,11 @@ type operation =
       { name : string;
         enabled_at_init : bool option
       }
+  | Cprobe_point of
+      { name : string;
+        counts : symbol;
+        index : int
+      }
   | Copaque of machtype
   | Cbeginregion
   | Cendregion
@@ -828,7 +833,7 @@ let iter_shallow_tail f = function
         | Ccmpi _ | Cnegf _ | Cabsf _ | Caddf _ | Csubf _ | Cmulf _ | Cdivf _
         | Creinterpret_cast _ | Cstatic_cast _
         | Ccmpf (_, _)
-        | Cprobe _ | Cprobe_is_enabled _
+        | Cprobe _ | Cprobe_is_enabled _ | Cprobe_point _
         | Ctuple_field (_, _) ),
         _,
         _ ) ->
@@ -866,7 +871,7 @@ let map_shallow_tail f = function
           | Catomic _ | Ccmpi _ | Cnegf _ | Cabsf _ | Caddf _ | Csubf _
           | Cmulf _ | Cdivf _ | Creinterpret_cast _ | Cstatic_cast _
           | Ccmpf (_, _)
-          | Cprobe _ | Cprobe_is_enabled _
+          | Cprobe _ | Cprobe_is_enabled _ | Cprobe_point _
           | Ctuple_field (_, _) ),
           _,
           _ ) ) as cmm ->

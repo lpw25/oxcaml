@@ -330,6 +330,8 @@ let operation d = function
       (match enabled_at_init with
       | None | Some false -> ""
       | Some true -> " enabled_at_init")
+  | Cprobe_point { name; counts; index } ->
+    Printf.sprintf "probe_point[%s %s %d]" name counts.sym_name index
   | Cprefetch { is_write; locality } ->
     Printf.sprintf "prefetch is_write=%b prefetch_temporal_locality_hint=%s"
       is_write

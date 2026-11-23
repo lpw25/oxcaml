@@ -748,6 +748,10 @@ let expr sub x =
     | Texp_probe {name; handler; enabled_at_init;} ->
       Texp_probe {name; handler = sub.expr sub handler; enabled_at_init}
     | Texp_probe_is_enabled _ as e -> e
+    | Texp_probe_point {name; index; condition} ->
+      Texp_probe_point
+        {name; index; condition = Option.map (sub.expr sub) condition}
+    | Texp_probe_point_counts _ as e -> e
     | Texp_exclave exp ->
         Texp_exclave (sub.expr sub exp)
     | Texp_src_pos -> Texp_src_pos

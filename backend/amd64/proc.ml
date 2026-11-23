@@ -678,7 +678,7 @@ let destroyed_at_basic (basic : Cfg_intf.S.basic) =
        | Csel _
        | Reinterpret_cast _
        | Static_cast _
-       | Probe_is_enabled _
+       | Probe_is_enabled _ | Probe_point _
        | Opaque
        | Begin_region
        | End_region
@@ -849,7 +849,8 @@ let operation_supported = function
   | Cnegf _ | Cabsf _ | Caddf _ | Csubf _ | Cmulf _ | Cdivf _ | Cpackf32
   | Ccmpf _
   | Craise _
-  | Cprobe _ | Cprobe_is_enabled _ | Copaque _ | Cbeginregion | Cendregion
+  | Cprobe _ | Cprobe_is_enabled _ | Cprobe_point _ | Copaque _ | Cbeginregion
+  | Cendregion
   | Ctuple_field _
   | Cdls_get
   | Ctls_get

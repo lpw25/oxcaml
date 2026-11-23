@@ -157,6 +157,11 @@ type preproc_stack_check_result =
     contains_nontail_calls : bool
   }
 
+(** Upper bound on the number of bytes of stack used below the current stack
+    pointer by an enabled probe point (the return address plus the registers
+    saved by the probe point stub). *)
+val probe_point_stack_usage : int
+
 val preproc_stack_check :
   fun_body:Linear.instruction ->
   frame_size:int ->

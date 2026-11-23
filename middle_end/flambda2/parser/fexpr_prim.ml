@@ -735,6 +735,30 @@ let probe_is_enabled =
         let name = unwrap_loc name in
         P.Probe_is_enabled { name; enabled_at_init }))
 
+let probe_point =
+  D.(
+    nullary "%probe_point"
+      ~params:
+        (param3 (labeled "name" string) (labeled "unit" string)
+           (labeled "index" int))
+      (fun _env (name, compilation_unit, index) ->
+        let name = unwrap_loc name in
+        let compilation_unit =
+          Compilation_unit.of_string (unwrap_loc compilation_unit)
+        in
+        P.Probe_point { name; compilation_unit; index }))
+
+let probe_point_counts =
+  D.(
+    nullary "%probe_point_counts"
+      ~params:(param2 (labeled "name" string) (labeled "unit" string))
+      (fun _env (name, compilation_unit) ->
+        let name = unwrap_loc name in
+        let compilation_unit =
+          Compilation_unit.of_string (unwrap_loc compilation_unit)
+        in
+        P.Probe_point_counts { name; compilation_unit }))
+
 let enter_inlined_apply =
   D.(
     nullary "%inlined_apply" ~params:param0 (fun _env () ->
@@ -1360,6 +1384,15 @@ module OfFlambda = struct
     | Optimised_out kind -> optimised_out env kind
     | Probe_is_enabled { name; enabled_at_init } ->
       probe_is_enabled env (wrap_loc name, enabled_at_init)
+    | Probe_point { name; compilation_unit; index } ->
+      probe_point env
+        ( wrap_loc name,
+          wrap_loc (Compilation_unit.full_path_as_string compilation_unit),
+          index )
+    | Probe_point_counts { name; compilation_unit } ->
+      probe_point_counts env
+        ( wrap_loc name,
+          wrap_loc (Compilation_unit.full_path_as_string compilation_unit) )
     | Enter_inlined_apply { dbg = _; inlined_attribute = _ } ->
       enter_inlined_apply env ()
     | Domain_index -> domain_index env ()

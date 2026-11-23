@@ -65,6 +65,41 @@ let add_probe ~stack_offset ~num_stack_slots ~contains_calls ~probe_name
   in
   probes := probe :: !probes
 
+type point =
+  { point_name : string;
+    point_label : Label.t;
+    point_dbg : Debuginfo.t
+  }
+
+let points = ref []
+
+let add_point ~name ~label ~dbg =
+  points
+    := { point_name = name; point_label = label; point_dbg = dbg } :: !points
+
+(* The stubs for [%probe_point]s in this compilation unit, one per counts array
+   symbol, most recent first. *)
+let point_stubs : (Cmm.symbol * S.t) list ref = ref []
+
+let find_or_add_point_stub (counts : Cmm.symbol) =
+  match
+    List.find_opt
+      (fun ((counts' : Cmm.symbol), _) ->
+        String.equal counts.sym_name counts'.sym_name)
+      !point_stubs
+  with
+  | Some (_, stub) -> stub
+  | None ->
+    let stub =
+      Cmm_helpers.make_symbol
+        ("probe_point_stub_" ^ Int.to_string (List.length !point_stubs))
+      |> S.create_local
+    in
+    point_stubs := (counts, stub) :: !point_stubs;
+    stub
+
+let get_point_stubs () = List.rev !point_stubs
+
 type semaphore_data = string * Asm_targets.Asm_symbol.t * bool option
 
 let probe_semaphores = ref String.Map.empty
@@ -152,7 +187,18 @@ let emit_probe_notes0 () =
     Emitaux.emit_elf_note ~section:Stapsdt_note ~owner:"stapsdt" ~typ:3l
       ~emit_desc
   in
-  List.iter describe_one_probe !probes
+  List.iter describe_one_probe !probes;
+  let describe_one_point p =
+    let semsym = find_or_add_semaphore p.point_name (Some false) p.point_dbg in
+    let semaphore_label = S.create_global semsym in
+    let emit_desc () =
+      emit_probe_note_desc ~probe_label:(Some p.point_label) ~semaphore_label
+        ~probe_name:p.point_name ~probe_args:""
+    in
+    Emitaux.emit_elf_note ~section:Stapsdt_note ~owner:"stapsdt" ~typ:3l
+      ~emit_desc
+  in
+  List.iter describe_one_point (List.rev !points)
 
 let emit_dummy_probe_notes () =
   (* A semaphore may be used via [%probe_is_enabled] without a corresponding
@@ -173,6 +219,11 @@ let emit_dummy_probe_notes () =
     List.fold_left
       (fun acc probe -> String.Map.remove probe.probe_name acc)
       !probe_semaphores !probes
+  in
+  let semaphores_without_probes =
+    List.fold_left
+      (fun acc point -> String.Map.remove point.point_name acc)
+      semaphores_without_probes !points
   in
   if not (String.Map.is_empty semaphores_without_probes)
   then (
@@ -206,7 +257,7 @@ let emit_probe_semaphores ~add_def_symbol =
     !probe_semaphores
 
 let emit_probe_notes ~add_def_symbol =
-  (match !probes with [] -> () | _ -> emit_probe_notes0 ());
+  (match !probes, !points with [], [] -> () | _ -> emit_probe_notes0 ());
   if not (String.Map.is_empty !probe_semaphores)
   then (
     emit_dummy_probe_notes ();
@@ -214,4 +265,6 @@ let emit_probe_notes ~add_def_symbol =
 
 let reset () =
   probes := [];
+  points := [];
+  point_stubs := [];
   probe_semaphores := String.Map.empty

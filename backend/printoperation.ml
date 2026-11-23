@@ -135,6 +135,8 @@ let operation_body ?(print_reg = Printreg.reg) (op : Operation.t) arg ppf =
       (match enabled_at_init with
       | None | Some false -> ""
       | Some true -> " enabled_at_init")
+  | Probe_point { name; counts; index } ->
+    fprintf ppf "probe_point \"%s\" %s %d" name counts.sym_name index
 
 let operation ?print_reg op arg ppf res =
   result_prefix ?print_reg ppf res;

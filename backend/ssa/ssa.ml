@@ -526,6 +526,7 @@ module Instruction = struct
       | Floatop _ | Csel _ -> false
       | Reinterpret_cast _ | Static_cast _ -> false
       | Probe_is_enabled _ -> false
+      | Probe_point _ -> true
       | Opaque -> true
       | Begin_region | End_region -> true
       | Specific s -> not (Arch.operation_is_pure s)

@@ -1269,7 +1269,8 @@ let rec comp_expr (exp : Lambda.lambda) : Blambda.blambda =
       | Punspecializedarray_set _ ->
         Misc.fatal_error "Blambda_of_lambda: Parrayblit Punspecializedarray_set"
       )
-    | Pprobe_is_enabled _ | Ppeek _ | Ppoke _ ->
+    | Pprobe_is_enabled _ | Pprobe_point _ | Pprobe_point_counts _ | Ppeek _
+    | Ppoke _ ->
       Misc.fatal_errorf "Blambda_of_lambda: %a is not supported in bytecode"
         Printlambda.primitive primitive
     | Pmakelazyblock Lazy_tag ->

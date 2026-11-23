@@ -144,7 +144,8 @@ end) : S = struct
           { Lambda.code;
             main_module_block_format;
             compilation_unit;
-            required_globals
+            required_globals;
+            probe_point_counts = []
           }
         in
         Backend.compile_implementation ~keep_symbol_tables:true

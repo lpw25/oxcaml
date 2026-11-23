@@ -443,6 +443,8 @@ type primitive =
   | Popaque of layout
   (* Statically-defined probes *)
   | Pprobe_is_enabled of { name: string; enabled_at_init: bool option }
+  | Pprobe_point of { name: string; index: int }
+  | Pprobe_point_counts of { name: string }
   (* Primitives for [Obj] *)
   | Pobj_dup
   | Pobj_magic of layout
@@ -1230,6 +1232,9 @@ type program =
     required_globals : Compilation_unit.Set.t;
                                         (* Modules whose initializer side effects
                                            must occur before [code]. *)
+    probe_point_counts : (string * int) list;
+                                        (* The length of the counts array for
+                                           each [%probe_point] name used. *)
     code : lambda }
 
 (* Lambda code for the middle-end. Here [mbf] is the value of the
