@@ -558,6 +558,8 @@ let rec of_expression_desc loc = function
   | Texp_open (od, e) -> app (Module_expr od.open_expr) ** of_expression e
   | Texp_probe p -> of_expression p.handler
   | Texp_probe_is_enabled _ -> id_fold
+  | Texp_probe_point { condition; _ } -> option_fold of_expression condition
+  | Texp_probe_point_counts _ -> id_fold
   | Texp_exclave e -> of_expression e
   | Texp_idx (block_access, unboxed_access) ->
     of_block_access block_access ** list_fold of_unboxed_access unboxed_access

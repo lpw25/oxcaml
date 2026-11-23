@@ -84,6 +84,8 @@ let expr_tail_positions = function
   | Texp_array_comprehension _
   | Texp_probe _
   | Texp_probe_is_enabled _
+  | Texp_probe_point _
+  | Texp_probe_point_counts _
   | Texp_src_pos
   | Texp_overwrite _
   | Texp_mutvar _
